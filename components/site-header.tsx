@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { Show, UserButton } from "@clerk/nextjs";
 
-export function SiteHeader() {
+export async function SiteHeader() {
   return (
     <header className="border-b border-border bg-bg-primary">
       <div className="mx-auto flex max-w-(--container-insight) items-center justify-between px-6 py-4">
@@ -17,12 +18,17 @@ export function SiteHeader() {
           </Link>
         </nav>
 
-        <Link
-          href="/login"
-          className="rounded-md border border-border px-4 py-2 text-body-md font-medium text-text-primary transition-colors hover:bg-surface"
-        >
-          Login
-        </Link>
+        <Show when="signed-out">
+          <Link
+            href="/sign-in"
+            className="rounded-md border border-border px-4 py-2 text-body-md font-medium text-text-primary transition-colors hover:bg-surface"
+          >
+            Login
+          </Link>
+        </Show>
+        <Show when="signed-in">
+          <UserButton />
+        </Show>
       </div>
     </header>
   );
