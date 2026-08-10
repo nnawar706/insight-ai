@@ -16,3 +16,11 @@ export async function getAllSources(): Promise<Source[]> {
   if (error) throw new Error(`getAllSources failed: ${error.message}`);
   return data;
 }
+
+export async function getSourceById(id: string): Promise<Source | null> {
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase.from("sources").select("*").eq("id", id).maybeSingle();
+
+  if (error) throw new Error(`getSourceById failed: ${error.message}`);
+  return data;
+}
