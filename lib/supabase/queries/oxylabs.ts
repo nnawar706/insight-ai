@@ -1,5 +1,5 @@
 import { createServiceRoleClient } from "../server-client";
-import type { OxylabsSchedule, OxylabsScheduleRun, OxylabsScheduleRunInsert } from "../types";
+import type { OxylabsSchedule, OxylabsScheduleRun, OxylabsScheduleRunInsert, Source } from "../types";
 
 export async function getSchedules(): Promise<OxylabsSchedule[]> {
   const supabase = createServiceRoleClient();
@@ -66,4 +66,40 @@ export async function markRunProcessed(id: string): Promise<void> {
     .eq("id", id);
 
   if (error) throw new Error(`markRunProcessed failed: ${error.message}`);
+}
+
+export async function getRunByJobId(scheduleId: string, oxylabsJobId: string): Promise<OxylabsScheduleRun | null> {
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from("oxylabs_schedule_runs")
+    .select("*")
+    .eq("schedule_id", scheduleId)
+    .eq("oxylabs_job_id", oxylabsJobId)
+    .maybeSingle();
+
+  if (error) throw new Error(`getRunByJobId failed: ${error.message}`);
+  return data;
+}
+
+export async function getActiveSchedulesWithSource(): Promise<(OxylabsSchedule & { source: Source })[]> {
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from("oxylabs_schedules")
+    .select<"*, source:sources(*)", OxylabsSchedule & { source: Source }>("*, source:sources(*)")
+    .eq("is_active", true);
+
+  if (error) throw new Error(`getActiveSchedulesWithSource failed: ${error.message}`);
+  return data;
+}
+
+export async function getRecentRuns(limit = 50): Promise<OxylabsScheduleRun[]> {
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from("oxylabs_schedule_runs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`getRecentRuns failed: ${error.message}`);
+  return data;
 }

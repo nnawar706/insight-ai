@@ -13,7 +13,7 @@ export const DEFAULT_LIMIT_PER_SOURCE = 5;
 const CANDIDATE_CAP_MULTIPLIER = 4;
 const MIN_CANDIDATE_CAP = 20;
 
-function mergeRejectionReasons(
+export function mergeRejectionReasons(
   target: Partial<Record<ArticleRejectionReason, number>>,
   source: Partial<Record<ArticleRejectionReason, number>>,
 ): void {
