@@ -7,8 +7,7 @@ import { SentimentBadge } from "@/components/sentiment-badge";
 import { BiasAnalysisCard } from "@/components/bias-analysis-card";
 import { AiSummaryCard } from "@/components/ai-summary-card";
 import { FramingNotesCard } from "@/components/framing-notes-card";
-import { RelatedArticleCard } from "@/components/related-article-card";
-import { sampleArticles } from "@/lib/sample-articles";
+import { getArticleById } from "@/lib/supabase/queries/articles";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -22,7 +21,7 @@ type ArticlePageProps = {
 
 export async function generateMetadata({ params }: ArticlePageProps) {
   const { id } = await params;
-  const article = sampleArticles.find((a) => a.id === id);
+  const article = await getArticleById(id);
 
   if (!article) {
     return { title: "INSIGHT AI" };
@@ -33,13 +32,17 @@ export async function generateMetadata({ params }: ArticlePageProps) {
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const { id } = await params;
-  const article = sampleArticles.find((a) => a.id === id);
+  const article = await getArticleById(id);
 
-  if (!article) {
+  if (!article || !article.analysis) {
     notFound();
   }
 
-  const relatedArticles = sampleArticles.filter((a) => a.id !== article.id).slice(0, 6);
+  const analysis = article.analysis;
+  const bodyParagraphs = article.raw_text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph.length > 0);
 
   return (
     <>
@@ -48,17 +51,13 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       <main className="mx-auto w-full max-w-(--container-insight) flex-1 px-6 py-8">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <p className="text-body-sm text-text-secondary">
-              {article.category} · {article.location}
-            </p>
-
-            <h1 className="mt-2 text-h1 font-bold text-text-primary">{article.title}</h1>
+            <h1 className="text-h1 font-bold text-text-primary">{article.title}</h1>
 
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <p className="text-body-sm text-text-secondary">
-                {article.source} · {dateFormatter.format(new Date(article.publishedAt))}
+                {article.source.name} · {dateFormatter.format(new Date(article.published_at))}
               </p>
-              <SentimentBadge sentimentLabel={article.sentimentLabel} />
+              <SentimentBadge sentimentLabel={analysis.sentiment_label} />
               <button
                 type="button"
                 aria-label="Save"
@@ -81,7 +80,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
             <div className="relative mt-6 aspect-[16/9] w-full overflow-hidden rounded-lg">
               <Image
-                src={article.imageUrl}
+                src={article.image_url}
                 alt={article.title}
                 fill
                 sizes="(min-width: 1024px) 66vw, 100vw"
@@ -94,45 +93,34 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               <h2 className="text-h4 font-medium text-text-primary">Bias Distribution</h2>
               <div className="mt-3">
                 <BiasBar
-                  leftPercentage={article.leftPercentage}
-                  centerPercentage={article.centerPercentage}
-                  rightPercentage={article.rightPercentage}
+                  leftPercentage={analysis.left_percentage}
+                  centerPercentage={analysis.center_percentage}
+                  rightPercentage={analysis.right_percentage}
                 />
               </div>
             </div>
 
             <div className="mt-6 flex flex-col gap-4">
-              {article.bodyParagraphs.map((paragraph, index) => (
+              {bodyParagraphs.map((paragraph, index) => (
                 <p key={index} className="text-body-lg text-text-primary">
                   {paragraph}
                 </p>
               ))}
             </div>
-
-            {relatedArticles.length > 0 && (
-              <div className="mt-10">
-                <h2 className="text-h3 font-semibold text-text-primary">Related Stories</h2>
-                <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
-                  {relatedArticles.map((related) => (
-                    <RelatedArticleCard key={related.id} article={related} />
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="flex flex-col gap-6 lg:col-span-1">
             <BiasAnalysisCard
-              biasLabel={article.biasLabel}
-              leftPercentage={article.leftPercentage}
-              centerPercentage={article.centerPercentage}
-              rightPercentage={article.rightPercentage}
-              confidence={article.confidence}
+              biasLabel={analysis.bias_label}
+              leftPercentage={analysis.left_percentage}
+              centerPercentage={analysis.center_percentage}
+              rightPercentage={analysis.right_percentage}
+              confidence={analysis.confidence}
             />
 
-            <AiSummaryCard summary={article.summary} disclaimer={article.disclaimer} />
+            <AiSummaryCard summary={analysis.summary} disclaimer={analysis.disclaimer} />
 
-            <FramingNotesCard framingNotes={article.framingNotes} loadedTerms={article.loadedTerms} />
+            <FramingNotesCard framingNotes={analysis.framing_notes} loadedTerms={analysis.loaded_terms} />
           </div>
         </div>
       </main>

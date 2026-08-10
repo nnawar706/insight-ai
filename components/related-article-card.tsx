@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { SampleArticle } from "@/lib/sample-articles";
+import type { NewsCardArticle } from "./news-card";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -8,7 +8,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-export function RelatedArticleCard({ article }: { article: SampleArticle }) {
+export function RelatedArticleCard({ article }: { article: NewsCardArticle }) {
   return (
     <Link
       href={`/articles/${article.id}`}
@@ -25,10 +25,6 @@ export function RelatedArticleCard({ article }: { article: SampleArticle }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-4">
-        <p className="text-body-sm text-text-secondary">
-          {article.category} · {article.location}
-        </p>
-
         <h3 className="text-h4 font-medium text-text-primary line-clamp-2">{article.title}</h3>
 
         <p className="mt-auto text-caption text-text-secondary">

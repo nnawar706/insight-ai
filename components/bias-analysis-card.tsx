@@ -1,5 +1,5 @@
 import { BiasBar } from "./bias-bar";
-import type { BiasLabel } from "@/lib/sample-articles";
+import type { BiasLabel } from "@/lib/supabase/types";
 
 type BiasAnalysisCardProps = {
   biasLabel: BiasLabel;

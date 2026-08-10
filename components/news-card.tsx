@@ -1,7 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BiasBar } from "./bias-bar";
-import type { SampleArticle } from "@/lib/sample-articles";
+
+export type NewsCardArticle = {
+  id: string;
+  title: string;
+  imageUrl: string;
+  source: string;
+  publishedAt: string;
+  leftPercentage: number;
+  centerPercentage: number;
+  rightPercentage: number;
+};
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -9,7 +19,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-export function NewsCard({ article }: { article: SampleArticle }) {
+export function NewsCard({ article }: { article: NewsCardArticle }) {
   return (
     <Link
       href={`/articles/${article.id}`}
@@ -29,10 +39,6 @@ export function NewsCard({ article }: { article: SampleArticle }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-3 p-4">
-        <p className="text-body-sm text-text-secondary">
-          {article.category} · {article.location}
-        </p>
-
         <h3 className="text-h4 font-medium text-text-primary line-clamp-3">{article.title}</h3>
 
         <BiasBar

@@ -1,4 +1,4 @@
-import type { SentimentLabel } from "@/lib/sample-articles";
+import type { SentimentLabel } from "@/lib/supabase/types";
 
 export function SentimentBadge({ sentimentLabel }: { sentimentLabel: SentimentLabel }) {
   const label = sentimentLabel.charAt(0).toUpperCase() + sentimentLabel.slice(1);
