@@ -1,8 +1,8 @@
 -- insight-ai database schema
 -- Source of truth. Apply via Supabase Dashboard -> SQL Editor.
--- The `embedding vector(1536)` column on article_analyses is added later (AGENTS.md section 20).
 
 create extension if not exists "pgcrypto";
+create extension if not exists "vector";
 
 -- sources --------------------------------------------------------------
 create table if not exists sources (
@@ -55,12 +55,69 @@ create table if not exists article_analyses (
   loaded_terms text[] not null default '{}',
   disclaimer text not null,
   model text not null,
+  embedding vector(1536),
   created_at timestamptz not null default now(),
   constraint article_analyses_percentages_sum_100
     check (left_percentage + center_percentage + right_percentage = 100)
 );
 
+create index if not exists article_analyses_embedding_idx
+  on article_analyses using ivfflat (embedding vector_cosine_ops)
+  with (lists = 100);
+
 alter table article_analyses enable row level security;
+
+-- match_related_articles (section 20; security invoker — the service-role
+-- client already bypasses RLS, so no need for security definer's elevated
+-- privileges or its implicit public EXECUTE grant). search_path is pinned to
+-- 'public' rather than '' because the vector `<=>` operator has no schema-
+-- qualified call syntax and can only be resolved via the search path; this
+-- is safe for a security-invoker function since it never runs with elevated
+-- privileges regardless of search_path. `drop ... create` (not `create or
+-- replace`) because Postgres rejects `create or replace` when the returned
+-- row shape changes. ----------------------------------------------------
+drop function if exists match_related_articles(uuid, vector, integer);
+
+create function match_related_articles(
+  p_article_id uuid,
+  p_embedding vector(1536),
+  p_match_count int default 5
+)
+returns table (
+  id uuid,
+  title text,
+  image_url text,
+  published_at timestamptz,
+  source_name text,
+  sentiment_label text,
+  left_percentage smallint,
+  center_percentage smallint,
+  right_percentage smallint
+)
+language sql
+stable
+security invoker
+set search_path = 'public'
+as $$
+  select
+    a.id,
+    a.title,
+    a.image_url,
+    a.published_at,
+    s.name as source_name,
+    aa.sentiment_label,
+    aa.left_percentage,
+    aa.center_percentage,
+    aa.right_percentage
+  from public.article_analyses aa
+  join public.articles a on a.id = aa.article_id
+  join public.sources s on s.id = a.source_id
+  where aa.embedding is not null
+    and aa.article_id <> p_article_id
+    and a.analyzed_at is not null
+  order by aa.embedding <=> p_embedding
+  limit p_match_count;
+$$;
 
 -- logs (section 9 run logging) ---------------------------------------------
 create table if not exists logs (

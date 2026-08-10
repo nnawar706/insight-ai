@@ -1,8 +1,9 @@
 import "server-only";
-import { getArticlesByIds, getPendingArticleIds, markArticleAnalyzed } from "../supabase/queries/articles";
-import { insertArticleAnalysis } from "../supabase/queries/analyses";
+import { getArticlesByIds, getPendingArticles, markArticleAnalyzed } from "../supabase/queries/articles";
+import { insertArticleAnalysis, updateArticleAnalysisEmbedding } from "../supabase/queries/analyses";
 import { insertLog } from "../supabase/queries/logs";
 import { analyzeArticle } from "../ai/analyze-article";
+import { embedArticle } from "../ai/embed-article";
 import type { Article, ArticleAnalysisInsert, Json } from "../supabase/types";
 import type { AnalysisSummary, ManualAnalyzeOptions } from "./types";
 
@@ -16,9 +17,17 @@ function getBatchSize(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_BATCH_SIZE;
 }
 
-async function analyzeOne(article: Article): Promise<"analyzed" | "failed"> {
+async function analyzeOne(article: Article, needsEmbeddingOnly: boolean): Promise<"analyzed" | "failed"> {
   try {
-    const result = await analyzeArticle(article);
+    if (needsEmbeddingOnly) {
+      const embedding = await embedArticle(article);
+      await updateArticleAnalysisEmbedding(article.id, embedding);
+      await markArticleAnalyzed(article.id);
+      console.info(`[analyze] backfilled embedding for "${article.title}"`);
+      return "analyzed";
+    }
+
+    const [result, embedding] = await Promise.all([analyzeArticle(article), embedArticle(article)]);
 
     const insert: ArticleAnalysisInsert = {
       article_id: article.id,
@@ -35,6 +44,7 @@ async function analyzeOne(article: Article): Promise<"analyzed" | "failed"> {
       loaded_terms: result.loadedTerms,
       disclaimer: result.disclaimer,
       model: result.model,
+      embedding,
     };
 
     await insertArticleAnalysis(insert);
@@ -48,8 +58,9 @@ async function analyzeOne(article: Article): Promise<"analyzed" | "failed"> {
 }
 
 async function runExplicitIds(articleIds: string[], summary: AnalysisSummary): Promise<void> {
-  const pendingIds = new Set(await getPendingArticleIds(PENDING_ID_FETCH_CAP));
-  const toAnalyze = articleIds.filter((id) => pendingIds.has(id));
+  const pending = await getPendingArticles(PENDING_ID_FETCH_CAP);
+  const pendingMap = new Map(pending.map((p) => [p.id, p.needsEmbeddingOnly]));
+  const toAnalyze = articleIds.filter((id) => pendingMap.has(id));
   const alreadyAnalyzed = articleIds.length - toAnalyze.length;
 
   summary.pendingFound = toAnalyze.length;
@@ -65,7 +76,7 @@ async function runExplicitIds(articleIds: string[], summary: AnalysisSummary): P
     console.info(`[analyze] batch: analyzing ${articles.length} article(s)`);
 
     for (const article of articles) {
-      const outcome = await analyzeOne(article);
+      const outcome = await analyzeOne(article, pendingMap.get(article.id) ?? false);
       if (outcome === "analyzed") summary.analyzed += 1;
       else summary.failed += 1;
     }
@@ -81,15 +92,16 @@ async function runPendingLoop(limit: number | undefined, summary: AnalysisSummar
     if (remaining <= 0) break;
 
     const fetchSize = Math.min(batchSize, remaining);
-    const pendingIds = await getPendingArticleIds(fetchSize);
-    if (pendingIds.length === 0) break;
+    const pending = await getPendingArticles(fetchSize);
+    if (pending.length === 0) break;
 
-    summary.pendingFound += pendingIds.length;
-    const articles = await getArticlesByIds(pendingIds);
+    summary.pendingFound += pending.length;
+    const pendingMap = new Map(pending.map((p) => [p.id, p.needsEmbeddingOnly]));
+    const articles = await getArticlesByIds(pending.map((p) => p.id));
     console.info(`[analyze] batch: analyzing ${articles.length} article(s)`);
 
     for (const article of articles) {
-      const outcome = await analyzeOne(article);
+      const outcome = await analyzeOne(article, pendingMap.get(article.id) ?? false);
       if (outcome === "analyzed") summary.analyzed += 1;
       else summary.failed += 1;
       processed += 1;

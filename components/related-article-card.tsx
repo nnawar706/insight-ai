@@ -1,6 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { NewsCardArticle } from "./news-card";
+import { SentimentBadge } from "./sentiment-badge";
+import type { SentimentLabel } from "@/lib/supabase/types";
+
+export type RelatedArticleCardArticle = {
+  id: string;
+  title: string;
+  imageUrl: string;
+  source: string;
+  publishedAt: string;
+  sentimentLabel: SentimentLabel;
+};
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -8,7 +18,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-export function RelatedArticleCard({ article }: { article: NewsCardArticle }) {
+export function RelatedArticleCard({ article }: { article: RelatedArticleCardArticle }) {
   return (
     <Link
       href={`/articles/${article.id}`}
@@ -27,9 +37,12 @@ export function RelatedArticleCard({ article }: { article: NewsCardArticle }) {
       <div className="flex flex-1 flex-col gap-2 p-4">
         <h3 className="text-h4 font-medium text-text-primary line-clamp-2">{article.title}</h3>
 
-        <p className="mt-auto text-caption text-text-secondary">
-          {article.source} · {dateFormatter.format(new Date(article.publishedAt))}
-        </p>
+        <div className="mt-auto flex flex-wrap items-center gap-2">
+          <p className="text-caption text-text-secondary">
+            {article.source} · {dateFormatter.format(new Date(article.publishedAt))}
+          </p>
+          <SentimentBadge sentimentLabel={article.sentimentLabel} />
+        </div>
       </div>
     </Link>
   );

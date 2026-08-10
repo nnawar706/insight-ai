@@ -20,6 +20,11 @@
   --color-bias-center: #e5e7eb;
   --color-bias-right: #1d4ed8;
 
+  /* Colors — Semantic (sentiment) */
+  --color-sentiment-positive: #15803d;
+  --color-sentiment-neutral: #b45309;
+  --color-sentiment-negative: #b42318;
+
   /* Colors — Neutrals */
   --color-bg-primary: #ffffff;
   --color-bg-secondary: #f0f0f0;

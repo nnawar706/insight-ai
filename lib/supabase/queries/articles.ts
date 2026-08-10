@@ -1,5 +1,5 @@
 import { createServiceRoleClient } from "../server-client";
-import type { Article, ArticleAnalysis, ArticleInsert, Database, Source } from "../types";
+import type { Article, ArticleAnalysis, ArticleInsert, Database, SentimentLabel, Source } from "../types";
 
 const URL_CHUNK_SIZE = 15;
 
@@ -81,24 +81,33 @@ export async function getArticleById(id: string): Promise<ArticleDetailRow | nul
   return data;
 }
 
-type PendingCheckRow = { id: string; analysis: { id: string } | null };
+type PendingCheckRow = { id: string; analysis: { id: string; embedding: number[] | null } | null };
+
+export interface PendingArticleInfo {
+  id: string;
+  /** True when an `article_analyses` row already exists but `embedding` is null (§20 backfill). */
+  needsEmbeddingOnly: boolean;
+}
 
 /**
- * Pending-analysis check (AGENTS.md §19): an article is pending when no `article_analyses`
- * row exists for it. Fetches the embedded one-to-one relation and filters in JS, per the
- * joined-table filter gotcha (§21) — never `.eq()`/`.is()` on a joined-table column.
+ * Pending-analysis check (AGENTS.md §19/§20): an article is pending when no `article_analyses`
+ * row exists for it, or when a row exists but `embedding` hasn't been backfilled yet. Fetches
+ * the embedded relation and filters in JS, per the joined-table filter gotcha (§21) — never
+ * `.eq()`/`.is()` on a joined-table column.
  */
-export async function getPendingArticleIds(limit: number): Promise<string[]> {
+export async function getPendingArticles(limit: number): Promise<PendingArticleInfo[]> {
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase
     .from("articles")
-    .select<"id, analysis:article_analyses(id)", PendingCheckRow>("id, analysis:article_analyses(id)")
+    .select<"id, analysis:article_analyses(id, embedding)", PendingCheckRow>(
+      "id, analysis:article_analyses(id, embedding)",
+    )
     .order("scraped_at", { ascending: true });
 
-  if (error) throw new Error(`getPendingArticleIds failed: ${error.message}`);
+  if (error) throw new Error(`getPendingArticles failed: ${error.message}`);
   return data
-    .filter((row) => row.analysis === null)
-    .map((row) => row.id)
+    .filter((row) => row.analysis === null || row.analysis.embedding === null)
+    .map((row) => ({ id: row.id, needsEmbeddingOnly: row.analysis !== null }))
     .slice(0, limit);
 }
 
@@ -120,4 +129,41 @@ export async function markArticleAnalyzed(articleId: string): Promise<void> {
     .eq("id", articleId);
 
   if (error) throw new Error(`markArticleAnalyzed failed: ${error.message}`);
+}
+
+const RELATED_ARTICLES_LIMIT = 5;
+
+export interface RelatedArticleRow {
+  id: string;
+  title: string;
+  imageUrl: string;
+  publishedAt: string;
+  sourceName: string;
+  sentimentLabel: SentimentLabel;
+  leftPercentage: number;
+  centerPercentage: number;
+  rightPercentage: number;
+}
+
+/** pgvector cosine-similarity search (§20). Requires the `match_related_articles` RPC. */
+export async function getRelatedArticles(articleId: string, embedding: number[]): Promise<RelatedArticleRow[]> {
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase.rpc("match_related_articles", {
+    p_article_id: articleId,
+    p_embedding: embedding,
+    p_match_count: RELATED_ARTICLES_LIMIT,
+  });
+
+  if (error) throw new Error(`getRelatedArticles failed: ${error.message}`);
+  return data.map((row) => ({
+    id: row.id,
+    title: row.title,
+    imageUrl: row.image_url,
+    publishedAt: row.published_at,
+    sourceName: row.source_name,
+    sentimentLabel: row.sentiment_label,
+    leftPercentage: row.left_percentage,
+    centerPercentage: row.center_percentage,
+    rightPercentage: row.right_percentage,
+  }));
 }

@@ -7,7 +7,8 @@ import { SentimentBadge } from "@/components/sentiment-badge";
 import { BiasAnalysisCard } from "@/components/bias-analysis-card";
 import { AiSummaryCard } from "@/components/ai-summary-card";
 import { FramingNotesCard } from "@/components/framing-notes-card";
-import { getArticleById } from "@/lib/supabase/queries/articles";
+import { RelatedArticleCard, type RelatedArticleCardArticle } from "@/components/related-article-card";
+import { getArticleById, getRelatedArticles } from "@/lib/supabase/queries/articles";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -43,6 +44,17 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph.length > 0);
+
+  const relatedArticles: RelatedArticleCardArticle[] = analysis.embedding
+    ? (await getRelatedArticles(article.id, analysis.embedding)).map((related) => ({
+        id: related.id,
+        title: related.title,
+        imageUrl: related.imageUrl,
+        source: related.sourceName,
+        publishedAt: related.publishedAt,
+        sentimentLabel: related.sentimentLabel,
+      }))
+    : [];
 
   return (
     <>
@@ -123,6 +135,17 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             <FramingNotesCard framingNotes={analysis.framing_notes} loadedTerms={analysis.loaded_terms} />
           </div>
         </div>
+
+        {relatedArticles.length > 0 && (
+          <div className="mt-12">
+            <h2 className="text-h2 font-semibold text-text-primary">Related Articles</h2>
+            <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {relatedArticles.map((related) => (
+                <RelatedArticleCard key={related.id} article={related} />
+              ))}
+            </div>
+          </div>
+        )}
       </main>
 
       <SiteFooter />

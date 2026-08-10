@@ -84,6 +84,7 @@ export interface Database {
           loaded_terms: string[];
           disclaimer: string;
           model: string;
+          embedding: number[] | null;
           created_at: string;
         };
         Insert: {
@@ -102,6 +103,7 @@ export interface Database {
           loaded_terms?: string[];
           disclaimer: string;
           model: string;
+          embedding?: number[] | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["article_analyses"]["Insert"]>;
@@ -214,7 +216,26 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      match_related_articles: {
+        Args: {
+          p_article_id: string;
+          p_embedding: number[];
+          p_match_count: number;
+        };
+        Returns: {
+          id: string;
+          title: string;
+          image_url: string;
+          published_at: string;
+          source_name: string;
+          sentiment_label: SentimentLabel;
+          left_percentage: number;
+          center_percentage: number;
+          right_percentage: number;
+        }[];
+      };
+    };
   };
 }
 
